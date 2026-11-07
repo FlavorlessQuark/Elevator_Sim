@@ -10,12 +10,15 @@ class System {
         int floorCount_;
         std::vector<Elevator> elevators_;
 
-        int findBestElevator(int from, int to);
+        int _findBestElevator(int from, int to);
+        void _displayOne(std::ostringstream& screenBuff, Elevator &elevator, int index, int startRow, int startCol);
+        
     public:
         System (int floorCount, int ElevatorCount);
         void callElevator(int from, int to);
-        void update();
-        void display();
+        void update(std::string input);
+        void display(std::string input);
+        void processInput(std::string input);
         ~System();
 
 };

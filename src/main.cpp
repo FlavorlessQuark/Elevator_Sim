@@ -2,40 +2,49 @@
 #include <iostream>
 #include <functional>
 #include <chrono>
+#include <sstream>
+#include <unistd.h>
+#include <sys/poll.h>
+#include <termios.h>
+#include <fcntl.h>
 
 
 int count = 3;
 int floors = 10;
 
 
-void processInput(System& system) {
-static std::chrono::steady_clock::time_point lastTime = std::chrono::steady_clock::now();
-static int first = 1;
-// Inside your update loop:
-auto currentTime = std::chrono::steady_clock::now();
+struct RawTerminal {
+    struct termios orig_termios;
 
-// Calculate exact elapsed time in milliseconds
-auto elapsedMs = std::chrono::duration_cast<std::chrono::milliseconds>(currentTime - lastTime).count();
+    RawTerminal() {
+        tcgetattr(STDIN_FILENO, &orig_termios);
+        struct termios raw = orig_termios;
+        
+        raw.c_lflag &= ~(ICANON | ECHO);
+        
+        raw.c_cc[VMIN] = 0;
+        raw.c_cc[VTIME] = 0;
+        
+        tcsetattr(STDIN_FILENO, TCSANOW, &raw);
+    }
 
-// Define how long a single tick lasts (e.g., 50 ms per tick)
-const long long msPerTick = 50; 
-long long ticksToProcess = elapsedMs / msPerTick;
+    ~RawTerminal() {
+        tcsetattr(STDIN_FILENO, TCSANOW, &orig_termios);
+        std::cout << "\033[?25h" << std::flush;
+    }
+};
 
-// Update the timestamp for the next cycle
-    int from = rand() % floors;
-    srand(currentTime.time_since_epoch().count()); // Seed the random number generator with elapsed time;
-    int to = rand() % floors;
-    if (first ||ticksToProcess >= 50) {
-        lastTime = currentTime; // Reset the last time to the current time
-        std::cout << "From " << from << " called to floor " << to << std::endl;
-        system.callElevator(from, to);
-        first = 0;
-    } 
-
+void getInput(std::string& mutable_input) {
+    char buf[256];
+    int bytesRead = read(STDIN_FILENO, buf, sizeof(buf));
+    
+    if (bytesRead > 0) {
+        mutable_input.append(buf, bytesRead);
+    }
 }
 
 void render(std::vector<Elevator>& elevators) {
-    std::cout << "\033[2J\033[H"; // Clear screen and move cursor to home position
+    std::cout << "\033[2J\033[H";
     for (size_t i = 0; i < elevators.size(); ++i) {
         const Elevator& elevator = elevators[i];
         std::cout << "Elevator " << i + 1 << ": Floor " << elevators[i].getState().currentFloor
@@ -44,22 +53,44 @@ void render(std::vector<Elevator>& elevators) {
 
 }
 
+bool extractNewCommand(const std::string& buffer, std::string& outCommand) {
+    static size_t lastProcessedIndex = std::string::npos;
+    
+    size_t lastNewline = buffer.find_last_of("\r\n");
+    
+    if (lastNewline == std::string::npos || lastNewline == lastProcessedIndex) {
+        return false;
+    }
+    
+    size_t startPos = 0;
+    if (lastNewline > 0) {
+        size_t prevNewline = buffer.find_last_of("\r\n", lastNewline - 1);
+        if (prevNewline != std::string::npos) {
+            startPos = prevNewline + 1;
+        }
+    }
+    
+    outCommand = buffer.substr(startPos, lastNewline - startPos);
+    
+    lastProcessedIndex = lastNewline;
+    
+    return true; 
+}
+
 int main(int argc, char* argv[]){
+    RawTerminal terminal;
     System system(floors, count);
-    int to = 0, from = 0;
-    // int count;
-    // if (argc != 2) {
-    //     std::cout << "Usage: " << argv[0] << " <number_of_elevators>" << std::endl;
-    //     return 1;
-    // }
-
-    // count = std::stoi(argv[1]);
-
+    std::string input;
     std::cout << "\033[2J\033[H\033[?25l";
     while (true) {
-        // processInput(system);
-        // system.update();
-        system.display();
+        getInput(input);
+        std::string command;
+        if (extractNewCommand(input, command)) {
+            system.processInput(command); 
+        }
+        system.update(input);
+        system.display(input);
+        usleep(20000);
     }
     return 0;
 }

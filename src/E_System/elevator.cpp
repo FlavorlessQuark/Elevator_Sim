@@ -17,7 +17,6 @@ ElevatorState Elevator::getState() {
 
 void Elevator::_set(int setIdx, int floor) {
     if (floor < 0 || floor >= MAX_FLOORS) return;
-    std::cout << "Setting bit for floor " << floor << " in set " << setIdx << std::endl;
     state_.routes[setIdx].set(floor);
 }
 
@@ -46,28 +45,21 @@ int Elevator::_Find_last(std::bitset<MAX_FLOORS>& route) {
 }
 
 bool Elevator::_CheckAndRoll() {
-    std::cout << "Checking and rolling routes..." 
-    << " r 0: " << state_.routes[0].count() << ", r 1: " << state_.routes[1].count() << ", r 2: " << state_.routes[2].count()
-    << std::endl;
     if (state_.routes[0].any() == true) {
-        std::cout << "Exit on 1" << std::endl;
         return true;
     }
     _roll();
     state_.nextDir =  static_cast<Status>(static_cast<char>(state_.nextDir) ^ DIR_MASK);
     if (state_.routes[0].any() == true) {
-        std::cout << "Exit on 2" << std::endl;
         return true;
     }
     _roll();
     state_.nextDir =  static_cast<Status>(static_cast<char>(state_.nextDir) ^ DIR_MASK);
     if (state_.routes[0].any() == true) {
-        std::cout << "Exit on 3" << std::endl;
         return true;
     }
     _roll();
     state_.nextDir =  static_cast<Status>(static_cast<char>(state_.nextDir) ^ DIR_MASK);
-    std::cout << "No more routes to roll." << std::endl;
     return false;
 }
 
@@ -77,11 +69,8 @@ ElevatorState Elevator::update(int elapsed) {
     switch (state_.state)
     {
         case Status::IDLE:
-            std::cout << "IDLE" << std::endl;
             if (state_.routes[0].any()) {
                 state_.state = state_.nextDir;
-                std::cout << "Elevator starting to move in direction: " << statusToString(state_.state) << std::endl;
-                std::cout<< "GOING TO FLOOR: ";
                 if (state_.nextDir == Status::UP) {
                     std::cout << state_.routes[0]._Find_first() << std::endl;
                 } else {
@@ -93,30 +82,26 @@ ElevatorState Elevator::update(int elapsed) {
             break;
         case Status::D_OPEN:
             if (elapsed_ >= TICK_RATE * D_OPEN_TIME) {
-                // std::cout << "Elevator closing doors at floor: " << state_.currentFloor << std::endl;
                 state_.state = Status::D_CLOSE;
-                elapsed_ = 0; // Not sure about this, could be elapsed_ -= D_OPENITME, but error accumulation could lead to state skips
+                elapsed_ = 0;
             }
             break ;
         case Status::D_CLOSE:
             if (elapsed_ >= TICK_RATE * D_CLOSE_TIME){
-                // std::cout << "Elevator doors closed at floor: " << state_.currentFloor << std::endl;
                 if (_CheckAndRoll() == false) {
                     state_.state = Status::IDLE;
                 }
                 else {
                     state_.state = state_.nextDir;
-                    // std::cout << "Elevator starting to move in direction: " << statusToString(state_.state) << std::endl;
                 }
                 elapsed_ = 0;
             }
             break;
         default:
             int travelled = elapsed_ / (TICK_RATE * FLOOR_DIST);
-            if (travelled == 0) break; // Not enough time has passed to move a floor
+            if (travelled == 0) break;
             elapsed_ = elapsed_ % (TICK_RATE * FLOOR_DIST);
 
-            // std::cout << "Elevator moving in direction: " << statusToString(state_.state) << " | Current floor: " << state_.currentFloor << std::endl;
             if (state_.state == Status::UP) {
                 state_.currentFloor += travelled;
                 if (state_.nextDir == Status::UP && state_.currentFloor >= state_.routes[0]._Find_first()) {
@@ -150,44 +135,39 @@ void Elevator::addDestination(int from, int to) {
 
     if (state_.nextDir == Status::UP) {
         if (from >= state_.currentFloor) {
-            // Case 1: 'from' is ahead in the UP direction
             bitsetFrom = 0;
             if (to >= from) {
-                bitsetTo = 0; // 'to' is further up (same sweep)
+                bitsetTo = 0;
             } else {
-                bitsetTo = 1; // 'to' is below 'from' (serviced on the way down)
+                bitsetTo = 1;
             }
         } else {
-            // Case 2: 'from' is behind us (below current floor)
-            bitsetFrom = 1; // Reached on the downward return trip
+            bitsetFrom = 1;
             if (to > from) {
-                bitsetTo = 2; // 'to' is above 'from', requiring a final upward pass
+                bitsetTo = 2;
             } else {
-                bitsetTo = 1; // 'to' is even lower, serviced on the downward trip
+                bitsetTo = 1;
             }
         }
     } 
-    else { // Status::DOWN
+    else {
         if (from <= state_.currentFloor) {
-            // Case 1: 'from' is ahead in the DOWN direction
             bitsetFrom = 0;
             if (to <= from) {
-                bitsetTo = 0; // 'to' is further down (same sweep)
+                bitsetTo = 0;
             } else {
-                bitsetTo = 1; // 'to' is above 'from' (serviced on the way up)
+                bitsetTo = 1;
             }
         } else {
-            // Case 2: 'from' is behind us (above current floor)
-            bitsetFrom = 1; // Reached on the upward return trip
+            bitsetFrom = 1;
             if (to < from) {
-                bitsetTo = 2; // 'to' is below 'from', requiring a final downward pass
+                bitsetTo = 2;
             } else {
-                bitsetTo = 1; // 'to' is even higher, serviced on the upward trip
+                bitsetTo = 1;
             }
         }
     }
 
-    // Set the bits for both pickup and destination floors
     _set(bitsetFrom, from);
     _set(bitsetTo, to);
 }

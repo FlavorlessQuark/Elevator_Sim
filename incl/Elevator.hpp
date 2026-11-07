@@ -7,7 +7,8 @@ constexpr int FLOOR_DIST = 10;
 constexpr int MAX_FLOORS = 20;
 constexpr int D_OPEN_TIME = 4;
 constexpr int D_CLOSE_TIME = 2;
-constexpr int TICK_RATE = 50; // 50 ms per tick
+constexpr int TICK_RATE = 50;
+constexpr int TERMIN_W = 80;
 
 enum Status {
     IDLE,
